@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import subprocess
 import traceback
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -931,12 +932,33 @@ def slack_error_message(exc: Exception) -> str:
 
 
 def upload_html_to_slack(path: Path, date_label: str) -> None:
-    dashboard_url = (
-        GITHUB_PAGES_URL.rstrip("/") + "/" if GITHUB_PAGES_URL else ""
-    )
-    if not dashboard_url:
-        # 필요 시 나중에 GITHUB_PAGES_URL만 바꾸면 됩니다.
-        dashboard_url = "https://YOUR_GITHUB_PAGES_URL_HERE/"
+    def infer_dashboard_url() -> str:
+        # 1) Actions/로컬에서 명시한 값 우선
+        if GITHUB_PAGES_URL:
+            return GITHUB_PAGES_URL.rstrip("/") + "/"
+
+        # 2) 로컬 git remote.origin.url에서 owner/repo 추출
+        try:
+            origin_url = (
+                subprocess.check_output(
+                    ["git", "config", "--get", "remote.origin.url"],
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                )
+                .strip()
+            )
+            m = re.search(r"github\.com[:/](?P<owner>[^/]+)/(?P<repo>[^/.]+)", origin_url)
+            if m:
+                owner = m.group("owner")
+                repo = m.group("repo")
+                return f"https://{owner}.github.io/{repo}/"
+        except Exception:
+            pass
+
+        # 3) 추출 불가 시 placeholder
+        return "https://YOUR_GITHUB_PAGES_URL_HERE/"
+
+    dashboard_url = infer_dashboard_url()
 
     comment = (
         f"🚨 *{date_label} 국내/해외 사이버 위협 현황* 🚨\n\n"
