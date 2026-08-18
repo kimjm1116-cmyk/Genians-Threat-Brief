@@ -963,7 +963,7 @@ def upload_html_to_slack(path: Path, date_label: str) -> None:
     comment = (
         f"🚨 *{date_label} 국내/해외 사이버 위협 현황* 🚨\n\n"
         "모바일 및 PC에서 아래 링크를 클릭하여 오늘의 위협 현황 대시보드를 확인하세요.\n"
-        f"🔗 *[오늘의 위협 현황 웹으로 보기]({dashboard_url})*"
+        f"🔗 <{dashboard_url}|오늘의 위협 현황 웹으로 보기>"
     )
     print(f"[전송] Slack 대시보드 링크 전송 시작 (channel={SLACK_CHANNEL_ID})")
     try:
