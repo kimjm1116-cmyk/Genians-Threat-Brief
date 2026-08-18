@@ -831,11 +831,34 @@ def post_empty_notice() -> None:
     print("[전송] Slack 안내 메시지 전송 성공")
 
 
+def print_env_diagnostics() -> None:
+    """민감 정보는 노출하지 않고 환경 변수 설정 여부만 출력."""
+    print("[환경] OPENAI_API_KEY:", "설정됨" if OPENAI_API_KEY and not OPENAI_API_KEY.startswith("sk-your-") else "없음/예시값")
+    print(
+        "[환경] SLACK_BOT_TOKEN:",
+        "설정됨 (xoxb-)" if SLACK_BOT_TOKEN.startswith("xoxb-") else "없음 또는 형식 오류",
+    )
+    print(
+        "[환경] SLACK_CHANNEL_ID:",
+        f"설정됨 ({SLACK_CHANNEL_ID[:4]}...)" if SLACK_CHANNEL_ID else "없음",
+    )
+
+
+def slack_error_message(exc: Exception) -> str:
+    if isinstance(exc, SlackApiError):
+        payload = exc.response if hasattr(exc, "response") else {}
+        if isinstance(payload, dict):
+            return str(payload.get("error") or payload)
+        return str(payload)
+    return str(exc)
+
+
 def upload_html_to_slack(path: Path, date_label: str) -> None:
     comment = (
         f"🚨 *{date_label} 국내/해외 사이버 위협 현황* 🚨\n"
         "기업/기관명을 클릭하시면 원문(뉴스/트윗)으로 이동하며, 표의 제목(헤더)을 클릭하면 정렬됩니다."
     )
+    print(f"[전송] Slack HTML 업로드 시작 (channel={SLACK_CHANNEL_ID}, file={path.name})")
     try:
         slack_client().files_upload_v2(
             channel=SLACK_CHANNEL_ID,
@@ -846,10 +869,23 @@ def upload_html_to_slack(path: Path, date_label: str) -> None:
         )
         print("[전송] Slack HTML 업로드 성공")
     except SlackApiError as exc:
-        error = exc.response.get("error") if hasattr(exc, "response") else str(exc)
+        error = slack_error_message(exc)
+        print(f"[오류] Slack API 응답: {error}")
         if error == "not_in_channel":
             raise RuntimeError(
                 "봇이 채널에 없습니다. Slack에서 `/invite @봇이름` 으로 초대한 뒤 다시 실행하세요."
+            ) from exc
+        if error in {"invalid_auth", "token_revoked", "account_inactive"}:
+            raise RuntimeError(
+                "Slack Bot Token이 잘못되었습니다. GitHub Secrets의 SLACK_BOT_TOKEN을 다시 확인하세요."
+            ) from exc
+        if error in {"channel_not_found", "is_archived"}:
+            raise RuntimeError(
+                "Slack 채널 ID가 잘못되었습니다. GitHub Secrets의 SLACK_CHANNEL_ID를 다시 확인하세요."
+            ) from exc
+        if error == "missing_scope":
+            raise RuntimeError(
+                "Slack 봇 권한이 부족합니다. Bot Token Scopes에 files:write, chat:write를 추가하세요."
             ) from exc
         raise RuntimeError(f"Slack 업로드 실패: {error}") from exc
 
@@ -883,6 +919,7 @@ def run() -> int:
     print("국내외 사이버 위협 현황 봇 시작")
     print(f"오늘 날짜: {date_label}")
     print(f"기준 시각: {now_utc().astimezone(KST).strftime('%Y-%m-%d %H:%M:%S KST')}")
+    print_env_diagnostics()
     print("=" * 60)
 
     try:
@@ -915,8 +952,9 @@ def run() -> int:
                 channel=SLACK_CHANNEL_ID,
                 text=f"봇 실행 실패: {exc}",
             )
-        except Exception:
-            print("[오류] Slack 오류 알림 전송도 실패했습니다.")
+        except Exception as exc2:
+            print(f"[오류] Slack 오류 알림 전송도 실패했습니다: {exc2}")
+            traceback.print_exc()
         return 1
 
 
