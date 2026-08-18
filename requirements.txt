@@ -1,0 +1,5 @@
+openai>=1.40.0
+requests>=2.32.0
+slack-sdk>=3.31.0
+feedparser>=6.0.11
+python-dotenv>=1.0.1
