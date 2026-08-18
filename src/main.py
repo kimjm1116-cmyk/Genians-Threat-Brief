@@ -624,8 +624,7 @@ def company_cell_html(name: str, source_url: str) -> str:
         return safe_name
     href = html.escape(source_url, quote=True)
     return (
-        f'<a href="{href}" target="_blank" rel="noopener noreferrer" '
-        f'style="color: #1E90FF; text-decoration: none; font-weight: bold;">{safe_name}</a>'
+        f'<a href="{href}" target="_blank" rel="noopener noreferrer">{safe_name}</a>'
     )
 
 
@@ -666,108 +665,165 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>🚨 {html.escape(date_label)} 국내/해외 사이버 위협 현황</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
   <style>
-    :root {{
-      --header-bg: #5b6770;
-      --header-fg: #ffffff;
-      --border: #c5ccd3;
-      --row-odd: #ffffff;
-      --row-even: #f3f5f7;
-      --text: #1f2933;
-      --accent: #1f4e79;
-    }}
-    * {{ box-sizing: border-box; }}
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+
     body {{
-      margin: 0;
-      padding: 28px;
-      color: var(--text);
-      background: #eef2f5;
-      font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo",
-        "AppleGothic", "Noto Sans KR", "Segoe UI Emoji", "Apple Color Emoji",
-        "Noto Color Emoji", sans-serif;
+      background: #f9fafb;
+      color: #111827;
+      font-family: "Pretendard", -apple-system, "Apple SD Gothic Neo",
+        "Noto Sans KR", "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 32px 24px 48px;
     }}
-    .wrap {{
-      max-width: 1400px;
+
+    /* ── 페이지 헤더 ── */
+    .page-header {{
+      max-width: 1480px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      flex-wrap: wrap;
+    }}
+    .page-title {{
+      font-size: 22px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.3px;
+    }}
+    .page-meta {{
+      font-size: 13px;
+      color: #6b7280;
+    }}
+
+    /* ── 카드 컨테이너 ── */
+    .card {{
+      max-width: 1480px;
       margin: 0 auto;
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: 0 8px 24px rgba(31, 41, 51, 0.08);
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10), 0 1px 2px rgba(0, 0, 0, 0.06);
       overflow: hidden;
     }}
-    h1 {{
-      margin: 0;
-      padding: 18px 22px;
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--accent);
-      border-bottom: 1px solid var(--border);
+
+    /* ── 카드 내부 헤더 바 ── */
+    .card-header {{
+      padding: 16px 24px;
+      border-bottom: 1px solid #eaecf0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }}
-    .meta {{
-      padding: 8px 22px 14px;
+    .badge {{
+      display: inline-block;
+      background: #fef2f2;
+      color: #b91c1c;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 99px;
+      letter-spacing: 0.3px;
+    }}
+    .card-title {{
+      font-size: 15px;
+      font-weight: 600;
+      color: #111827;
+    }}
+    .card-count {{
+      margin-left: auto;
       font-size: 13px;
-      color: #5b6770;
+      color: #6b7280;
     }}
+
+    /* ── 표 래퍼 ── */
     .table-wrap {{
       overflow-x: auto;
-      padding: 0 16px 20px;
     }}
+
+    /* ── 표 ── */
     table {{
       width: 100%;
       border-collapse: collapse;
-      table-layout: auto;
-      min-width: 980px;
+      min-width: 1000px;
     }}
-    th, td {{
-      border: 1px solid var(--border);
-      padding: 10px 12px;
+
+    thead tr {{
+      background: #f3f4f6;
+    }}
+
+    th {{
+      padding: 11px 16px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4b5563;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      border-bottom: 1px solid #eaecf0;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }}
+    th:hover {{ background: #e9eaec; }}
+    th.sort-asc::after  {{ content: " ▲"; font-size: 10px; opacity: 0.7; }}
+    th.sort-desc::after {{ content: " ▼"; font-size: 10px; opacity: 0.7; }}
+
+    td {{
+      padding: 14px 16px;
       text-align: center;
       vertical-align: middle;
       font-size: 13px;
-      line-height: 1.45;
+      color: #111827;
+      border-bottom: 1px solid #eaecf0;
     }}
-    th {{
-      background: var(--header-bg);
-      color: var(--header-fg);
-      font-weight: 700;
-      white-space: nowrap;
-      cursor: pointer;
-      user-select: none;
+
+    tbody tr:last-child td {{ border-bottom: none; }}
+    tbody tr:hover td {{ background: #f8fafc; }}
+
+    /* ── 링크 ── */
+    a {{
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 500;
     }}
-    th:hover {{ background: #4a545c; }}
-    th.sort-asc::after {{ content: " ▲"; font-size: 11px; }}
-    th.sort-desc::after {{ content: " ▼"; font-size: 11px; }}
-    tbody tr:nth-child(odd) {{ background: var(--row-odd); }}
-    tbody tr:nth-child(even) {{ background: var(--row-even); }}
-    tbody tr:hover {{ background: #e8eef5; }}
-    a {{ color: #1E90FF; text-decoration: none; font-weight: bold; }}
     a:hover {{ text-decoration: underline; }}
+
+    /* ── 국가 셀 ── */
     .country-cell {{
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       white-space: nowrap;
-      vertical-align: middle;
     }}
     .flag {{
       width: 20px;
       height: 14px;
       object-fit: cover;
       border-radius: 2px;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
-      vertical-align: middle;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.10);
+      flex-shrink: 0;
     }}
-    td.country {{
-      text-align: center;
-      vertical-align: middle;
-    }}
+
+    /* ── 신뢰도 배지 ── */
+    td:last-child {{ white-space: nowrap; }}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>🚨 {html.escape(date_label)} 국내/해외 사이버 위협 현황</h1>
-    <div class="meta">최근 24시간 수집 · 총 {len(rows)}건 · 기업/기관명을 클릭하면 원문(뉴스/트윗)으로 이동하며, 표의 제목(헤더)을 클릭하면 정렬됩니다.</div>
+  <div class="page-header">
+    <h1 class="page-title">🚨 {html.escape(date_label)} 국내/해외 사이버 위협 현황</h1>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="badge">LIVE</span>
+      <span class="card-title">위협 인텔리전스 리포트</span>
+      <span class="card-count">최근 24시간 · 총 {len(rows)}건 &nbsp;·&nbsp; 헤더 클릭 시 정렬 · 기업명 클릭 시 원문 이동</span>
+    </div>
     <div class="table-wrap">
       <table id="threat-table">
         <thead><tr>{header_cells}</tr></thead>
@@ -777,6 +833,7 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
       </table>
     </div>
   </div>
+
   <script>
     let currentCol = -1;
     let currentDir = "asc";
@@ -786,21 +843,22 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
     }}
 
     function sortTable(colIndex) {{
-      const table = document.getElementById("threat-table");
-      const tbody = table.tBodies[0];
-      const rows = Array.from(tbody.rows);
-      const dir = (currentCol === colIndex && currentDir === "asc") ? "desc" : "asc";
-      currentCol = colIndex;
-      currentDir = dir;
+      const table  = document.getElementById("threat-table");
+      const tbody  = table.tBodies[0];
+      const rows   = Array.from(tbody.rows);
+      const dir    = (currentCol === colIndex && currentDir === "asc") ? "desc" : "asc";
+      currentCol   = colIndex;
+      currentDir   = dir;
 
       rows.sort((a, b) => {{
         const av = cellText(a.cells[colIndex]);
         const bv = cellText(b.cells[colIndex]);
-        const cmp = av.localeCompare(bv, "ko", {{ numeric: true, sensitivity: "base" }});
-        return dir === "asc" ? cmp : -cmp;
+        return dir === "asc"
+          ? av.localeCompare(bv, "ko", {{ numeric: true, sensitivity: "base" }})
+          : bv.localeCompare(av, "ko", {{ numeric: true, sensitivity: "base" }});
       }});
 
-      rows.forEach((row) => tbody.appendChild(row));
+      rows.forEach(r => tbody.appendChild(r));
       Array.from(table.tHead.rows[0].cells).forEach((th, i) => {{
         th.classList.remove("sort-asc", "sort-desc");
         if (i === colIndex) th.classList.add(dir === "asc" ? "sort-asc" : "sort-desc");
