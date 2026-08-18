@@ -32,6 +32,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o").strip() or "gpt-4o"
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
 SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
+GITHUB_PAGES_URL = os.getenv(
+    "GITHUB_PAGES_URL",
+    # 예: https://{깃허브아이디}.github.io/{저장소이름}/
+    "",
+).strip()
 
 LOOKBACK_HOURS = 24
 KST = timezone(timedelta(hours=9))
@@ -192,12 +197,13 @@ def today_label() -> str:
 
 
 def html_filename(date_label: str | None = None) -> str:
-    label = date_label or today_label()
-    return f"국내_해외_사이버_위협_현황_({label.replace(' ', '_')}).html"
+    # GitHub Pages로 고정 배포하므로 파일명은 항상 index.html
+    return "index.html"
 
 
 def html_path(date_label: str | None = None) -> Path:
-    return ROOT_DIR / html_filename(date_label)
+    public_dir = ROOT_DIR / "public"
+    return public_dir / "index.html"
 
 
 def cutoff_utc() -> datetime:
@@ -663,7 +669,7 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🚨 {html.escape(date_label)} 국내/해외 사이버 위협 현황</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet" />
@@ -758,7 +764,7 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
     th {{
       padding: 11px 16px;
       text-align: center;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       color: #4b5563;
       letter-spacing: 0.3px;
@@ -776,7 +782,7 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
       padding: 14px 16px;
       text-align: center;
       vertical-align: middle;
-      font-size: 13px;
+      font-size: 14px;
       color: #111827;
       border-bottom: 1px solid #eaecf0;
     }}
@@ -811,6 +817,17 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
 
     /* ── 신뢰도 배지 ── */
     td:last-child {{ white-space: nowrap; }}
+
+    @media (max-width: 768px) {{
+      th {{
+        font-size: 12px;
+        padding: 10px 12px;
+      }}
+      td {{
+        font-size: 12px;
+        padding: 10px 12px;
+      }}
+    }}
   </style>
 </head>
 <body>
@@ -824,7 +841,7 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
       <span class="card-title">위협 인텔리전스 리포트</span>
       <span class="card-count">최근 24시간 · 총 {len(rows)}건 &nbsp;·&nbsp; 헤더 클릭 시 정렬 · 기업명 클릭 시 원문 이동</span>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
       <table id="threat-table">
         <thead><tr>{header_cells}</tr></thead>
         <tbody>
@@ -871,6 +888,8 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
 
 
 def save_html_report(html_doc: str, path: Path) -> Path:
+    # GitHub Pages 배포용 public 폴더가 없을 수 있으니 생성
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(html_doc, encoding="utf-8")
     print(f"[저장] HTML 파일 저장: {path}")
     return path
@@ -912,20 +931,22 @@ def slack_error_message(exc: Exception) -> str:
 
 
 def upload_html_to_slack(path: Path, date_label: str) -> None:
-    comment = (
-        f"🚨 *{date_label} 국내/해외 사이버 위협 현황* 🚨\n"
-        "기업/기관명을 클릭하시면 원문(뉴스/트윗)으로 이동하며, 표의 제목(헤더)을 클릭하면 정렬됩니다."
+    dashboard_url = (
+        GITHUB_PAGES_URL.rstrip("/") + "/" if GITHUB_PAGES_URL else ""
     )
-    print(f"[전송] Slack HTML 업로드 시작 (channel={SLACK_CHANNEL_ID}, file={path.name})")
+    if not dashboard_url:
+        # 필요 시 나중에 GITHUB_PAGES_URL만 바꾸면 됩니다.
+        dashboard_url = "https://YOUR_GITHUB_PAGES_URL_HERE/"
+
+    comment = (
+        f"🚨 *{date_label} 국내/해외 사이버 위협 현황* 🚨\n\n"
+        "모바일 및 PC에서 아래 링크를 클릭하여 오늘의 위협 현황 대시보드를 확인하세요.\n"
+        f"🔗 *[오늘의 위협 현황 웹으로 보기]({dashboard_url})*"
+    )
+    print(f"[전송] Slack 대시보드 링크 전송 시작 (channel={SLACK_CHANNEL_ID})")
     try:
-        slack_client().files_upload_v2(
-            channel=SLACK_CHANNEL_ID,
-            file=str(path),
-            filename=html_filename(date_label),
-            title=f"🚨 {date_label} 국내/해외 사이버 위협 현황 🚨",
-            initial_comment=comment,
-        )
-        print("[전송] Slack HTML 업로드 성공")
+        slack_client().chat_postMessage(channel=SLACK_CHANNEL_ID, text=comment)
+        print("[전송] Slack 메시지 전송 성공")
     except SlackApiError as exc:
         error = slack_error_message(exc)
         print(f"[오류] Slack API 응답: {error}")
@@ -943,9 +964,9 @@ def upload_html_to_slack(path: Path, date_label: str) -> None:
             ) from exc
         if error == "missing_scope":
             raise RuntimeError(
-                "Slack 봇 권한이 부족합니다. Bot Token Scopes에 files:write, chat:write를 추가하세요."
+                "Slack 봇 권한이 부족합니다. Bot Token Scopes에 chat:write를 추가하세요."
             ) from exc
-        raise RuntimeError(f"Slack 업로드 실패: {error}") from exc
+        raise RuntimeError(f"Slack 메시지 전송 실패: {error}") from exc
 
 
 def send_test_slack() -> None:
