@@ -23,6 +23,7 @@ import feedparser
 import requests
 from dotenv import load_dotenv
 from openai import OpenAI
+from playwright.sync_api import sync_playwright
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -205,6 +206,10 @@ def html_filename(date_label: str | None = None) -> str:
 def html_path(date_label: str | None = None) -> Path:
     public_dir = ROOT_DIR / "public"
     return public_dir / "index.html"
+
+
+def preview_image_path() -> Path:
+    return ROOT_DIR / "public" / "preview.png"
 
 
 def cutoff_utc() -> datetime:
@@ -896,6 +901,19 @@ def save_html_report(html_doc: str, path: Path) -> Path:
     return path
 
 
+def render_preview_image(html_file: Path, image_file: Path) -> Path:
+    image_file.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[저장] 미리보기 이미지 생성 시작: {image_file}")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1600, "height": 2200}, device_scale_factor=1)
+        page.goto(html_file.resolve().as_uri(), wait_until="networkidle")
+        page.screenshot(path=str(image_file), full_page=True)
+        browser.close()
+    print(f"[저장] 미리보기 이미지 저장: {image_file}")
+    return image_file
+
+
 def slack_client() -> WebClient:
     if not SLACK_BOT_TOKEN.startswith("xoxb-"):
         raise RuntimeError("SLACK_BOT_TOKEN이 없습니다. .env에 xoxb- 토큰을 넣어 주세요.")
@@ -931,7 +949,7 @@ def slack_error_message(exc: Exception) -> str:
     return str(exc)
 
 
-def upload_html_to_slack(path: Path, date_label: str) -> None:
+def upload_html_to_slack(path: Path, date_label: str, preview_path: Path | None = None) -> None:
     def infer_dashboard_url() -> str:
         # 1) Actions/로컬에서 명시한 값 우선
         if GITHUB_PAGES_URL:
@@ -965,8 +983,16 @@ def upload_html_to_slack(path: Path, date_label: str) -> None:
         "모바일 및 PC에서 아래 링크를 클릭하여 오늘의 위협 현황 대시보드를 확인하세요.\n"
         f"🔗 <{dashboard_url}|오늘의 위협 현황 웹으로 보기>"
     )
-    print(f"[전송] Slack 대시보드 링크 전송 시작 (channel={SLACK_CHANNEL_ID})")
+    print(f"[전송] Slack 대시보드 전송 시작 (channel={SLACK_CHANNEL_ID})")
     try:
+        if preview_path and preview_path.exists():
+            slack_client().files_upload_v2(
+                channel=SLACK_CHANNEL_ID,
+                file=str(preview_path),
+                filename=preview_path.name,
+                title=f"{date_label} 위협 현황 미리보기",
+            )
+            print("[전송] Slack 미리보기 이미지 업로드 성공")
         slack_client().chat_postMessage(channel=SLACK_CHANNEL_ID, text=comment)
         print("[전송] Slack 메시지 전송 성공")
     except SlackApiError as exc:
@@ -986,7 +1012,7 @@ def upload_html_to_slack(path: Path, date_label: str) -> None:
             ) from exc
         if error == "missing_scope":
             raise RuntimeError(
-                "Slack 봇 권한이 부족합니다. Bot Token Scopes에 chat:write를 추가하세요."
+                "Slack 봇 권한이 부족합니다. Bot Token Scopes에 chat:write, files:write를 추가하세요."
             ) from exc
         raise RuntimeError(f"Slack 메시지 전송 실패: {error}") from exc
 
@@ -1008,10 +1034,12 @@ def send_test_slack() -> None:
     ]
     date_label = today_label()
     out_path = html_path(date_label)
+    preview_path = preview_image_path()
     html_doc = build_html_report(sample, date_label)
     save_html_report(html_doc, out_path)
-    upload_html_to_slack(out_path, date_label)
-    print("테스트 HTML을 Slack 채널로 업로드했습니다.")
+    render_preview_image(out_path, preview_path)
+    upload_html_to_slack(out_path, date_label, preview_path)
+    print("테스트 대시보드 이미지와 링크를 Slack 채널로 전송했습니다.")
 
 
 def run() -> int:
@@ -1041,9 +1069,11 @@ def run() -> int:
 
         html_doc = build_html_report(threats, date_label)
         out_path = html_path(date_label)
+        preview_path = preview_image_path()
         save_html_report(html_doc, out_path)
-        upload_html_to_slack(out_path, date_label)
-        print(f"완료: {out_path.name}을 Slack에 업로드했습니다. ({len(threats)}건)")
+        render_preview_image(out_path, preview_path)
+        upload_html_to_slack(out_path, date_label, preview_path)
+        print(f"완료: {out_path.name}과 미리보기 이미지를 Slack에 전송했습니다. ({len(threats)}건)")
         return 0
     except Exception as exc:
         print("[오류] 실행 실패")
