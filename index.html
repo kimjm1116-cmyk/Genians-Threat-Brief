@@ -151,6 +151,91 @@
     /* ── 신뢰도 배지 ── */
     td:last-child { white-space: nowrap; }
 
+    /* ── 통계 요약 ── */
+    .dashboard {
+      max-width: 1480px;
+      margin: 0 auto;
+    }
+    .stats-section {
+      margin-top: 40px;
+      padding: 0 24px 24px;
+    }
+    .stats-heading {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.2px;
+      margin: 0 0 14px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .stat-card {
+      background: #ffffff;
+      border: 1px solid #eaecf0;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+      padding: 20px 22px 18px;
+      min-height: 100%;
+    }
+    .stat-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+    .stat-subtitle {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      margin: 8px 0 8px;
+    }
+    .stat-subtitle-gap {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #f3f4f6;
+    }
+    .stat-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stat-list li {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 14px;
+      color: #111827;
+    }
+    .stat-rank {
+      flex: 0 0 32px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;
+    }
+    .stat-name {
+      flex: 1 1 auto;
+      font-weight: 600;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .stat-count {
+      margin-left: auto;
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+    .stat-empty {
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
     @media (max-width: 768px) {
       th {
         font-size: 12px;
@@ -160,6 +245,9 @@
         font-size: 12px;
         padding: 10px 12px;
       }
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -168,59 +256,72 @@
     <h1 class="page-title">🚨 2026년 08월 19일 국내/해외 사이버 위협 현황</h1>
   </div>
 
+  <div class="dashboard">
   <div class="card">
     <div class="card-header">
       <span class="badge">LIVE</span>
       <span class="card-title">위협 인텔리전스 리포트</span>
-      <span class="card-count">최근 24시간 · 총 25건 &nbsp;·&nbsp; 헤더 클릭 시 정렬 · 기업명 클릭 시 원문 이동</span>
+      <span class="card-count">최근 24시간 · 총 12건 &nbsp;·&nbsp; 헤더 클릭 시 정렬 · 기업명 클릭 시 원문 이동</span>
     </div>
     <div class="table-wrap" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
       <table id="threat-table">
-        <thead><tr><th onclick="sortTable(0)" data-col="0">위협 일자</th><th onclick="sortTable(1)" data-col="1">기업/기관</th><th onclick="sortTable(2)" data-col="2">국가</th><th onclick="sortTable(3)" data-col="3">산업군</th><th onclick="sortTable(4)" data-col="4">사고 유형</th><th onclick="sortTable(5)" data-col="5">공격그룹</th><th onclick="sortTable(6)" data-col="6">공격기법</th><th onclick="sortTable(7)" data-col="7">피해 내용</th><th onclick="sortTable(8)" data-col="8">신뢰도</th></tr></thead>
+        <thead><tr><th onclick="sortTable(0)" data-col="0" class="sort-desc">위협 일자</th><th onclick="sortTable(1)" data-col="1">기업/기관</th><th onclick="sortTable(2)" data-col="2">국가</th><th onclick="sortTable(3)" data-col="3">산업군</th><th onclick="sortTable(4)" data-col="4">사고 유형</th><th onclick="sortTable(5)" data-col="5">공격그룹</th><th onclick="sortTable(6)" data-col="6">공격기법</th><th onclick="sortTable(7)" data-col="7">피해 내용</th><th onclick="sortTable(8)" data-col="8">신뢰도</th></tr></thead>
         <tbody>
-<tr><td>2026-08-19</td><td><a href="https://www.ransomware.live/id/UiAmIEQgTWFjaGluZSBhbmQgRW5naW5lZXJpbmdAZHJhZ29uZm9yY2U=" target="_blank" rel="noopener noreferrer">R &amp; D Machine and Engineering</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>제조</td><td>랜섬웨어</td><td>dragonforce</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-19</td><td><a href="https://www.ransomware.live/id/Q29sdHJhbmUgU3lzdGVtc0BwbGF5" target="_blank" rel="noopener noreferrer">Coltrane Systems</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>랜섬웨어</td><td>play</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/Qk9NT0hTQUBndW5yYQ==" target="_blank" rel="noopener noreferrer">BOMOHSA</a></td><td class="country"><span class="country-cell">미상</span></td><td>미상</td><td>랜섬웨어</td><td>gunra</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/bnlrbGF3ZmlybS5jb20gbnlrLmFlQGluY3JhbnNvbQ==" target="_blank" rel="noopener noreferrer">nyklawfirm.com nyk.ae</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/ae.png" alt="아랍에미리트" width="20" height="14" />아랍에미리트</span></td><td>전문서비스</td><td>랜섬웨어</td><td>incransom</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/c3NmLWludC5jb20gc3NmLWluZy5kZUBpbmNyYW5zb20=" target="_blank" rel="noopener noreferrer">SSF International GmbH</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/de.png" alt="독일" width="20" height="14" />독일</span></td><td>전문서비스</td><td>랜섬웨어</td><td>incransom</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/UHJlZmVpdHVyYSBNdW5pY2lwYWwgZGUgQXJjb3NAZW1wZXJhZG9y" target="_blank" rel="noopener noreferrer">Prefeitura Municipal de Arcos</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/br.png" alt="브라질" width="20" height="14" />브라질</span></td><td>공공</td><td>랜섬웨어</td><td>emperador</td><td>미상</td><td>시스템 암호화 및 데이터 유출</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/U2Nob2xsZSBJUE4gLyBTSUdAYW51Ymlz" target="_blank" rel="noopener noreferrer">Scholle IPN / SIG</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/de.png" alt="독일" width="20" height="14" />독일</span></td><td>제조</td><td>랜섬웨어</td><td>anubis</td><td>미상</td><td>데이터 유출</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/U3BlYXJGaW4gTHRkQGluY3JhbnNvbQ==" target="_blank" rel="noopener noreferrer">SpearFin Ltd</a></td><td class="country"><span class="country-cell">미상</span></td><td>금융</td><td>랜섬웨어</td><td>incransom</td><td>미상</td><td>데이터 유출</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/Qm9yY2hlcnQgJiBMYVNwaW5hQGFraXJh" target="_blank" rel="noopener noreferrer">Borchert &amp; LaSpina</a></td><td class="country"><span class="country-cell">미상</span></td><td>미상</td><td>랜섬웨어</td><td>akira</td><td>미상</td><td>데이터 유출</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/TG9naXRlY2gvIFN0cmVhbWxhYnNAc2hpbnlodW50ZXJz" target="_blank" rel="noopener noreferrer">Logitech/ Streamlabs</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/ch.png" alt="스위스" width="20" height="14" />스위스</span></td><td>IT</td><td>랜섬웨어</td><td>shinyhunters</td><td>미상</td><td>데이터 유출 위협</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/RGUqKip1cEBBdWRpdFRlYW0=" target="_blank" rel="noopener noreferrer">De***up</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/ru.png" alt="러시아" width="20" height="14" />러시아</span></td><td>미상</td><td>랜섬웨어</td><td>AuditTeam</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/U0QgQXNzb2NpYXRlcyBTZG4gQmhkQGluY3JhbnNvbQ==" target="_blank" rel="noopener noreferrer">SD Associates Sdn Bhd</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/my.png" alt="말레이시아" width="20" height="14" />말레이시아</span></td><td>미상</td><td>랜섬웨어</td><td>incransom</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/VGhpcmQgQ29hc3QgQmFuY3NoYXJlc0BpbmNyYW5zb20=" target="_blank" rel="noopener noreferrer">Third Coast Bancshares</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>금융</td><td>랜섬웨어</td><td>incransom</td><td>미상</td><td>데이터 유출</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/VmFsb3IgRGVmZW5zZSBTb2x1dGlvbnMsIEluY0BTdG9ybQ==" target="_blank" rel="noopener noreferrer">Valor Defense Solutions, Inc</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>공공</td><td>랜섬웨어</td><td>Storm</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/U3RhbmRhcmQgVG9vbCAmIERpZUBTdG9ybQ==" target="_blank" rel="noopener noreferrer">Standard Tool &amp; Die</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>제조</td><td>랜섬웨어</td><td>Storm</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/UGVuZm9sZEBTdG9ybQ==" target="_blank" rel="noopener noreferrer">Penfold</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/gb.png" alt="영국" width="20" height="14" />영국</span></td><td>IT</td><td>랜섬웨어</td><td>Storm</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/UmFtc2V5IEJyb3NAU3Rvcm0=" target="_blank" rel="noopener noreferrer">Ramsey Bros</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/au.png" alt="호주" width="20" height="14" />호주</span></td><td>미상</td><td>랜섬웨어</td><td>Storm</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/V2VzdGNvIE1vdG9ycyBDYWlybnNAU3Rvcm0=" target="_blank" rel="noopener noreferrer">Westco Motors Cairns</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/au.png" alt="호주" width="20" height="14" />호주</span></td><td>유통</td><td>랜섬웨어</td><td>Storm</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/dGVycmEtcGV0cmEuY29tQGxvY2tiaXQ1" target="_blank" rel="noopener noreferrer">terra-petra.com</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/de.png" alt="독일" width="20" height="14" />독일</span></td><td>IT</td><td>랜섬웨어</td><td>lockbit5</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.ransomware.live/id/V2luZFJvc2UgSGVhbHRoIE5ldHdvcmtAU3Rvcm0=" target="_blank" rel="noopener noreferrer">WindRose Health Network</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>의료</td><td>랜섬웨어</td><td>Storm</td><td>미상</td><td>시스템 암호화</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-19</td><td><a href="https://www.bleepingcomputer.com/news/security/clop-created-custom-web-shell-for-windchill-data-theft-attacks/" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell">미상</span></td><td>미상</td><td>제로데이</td><td>Clop</td><td>웹 셸을 통한 데이터 탈취</td><td>데이터 유출</td><td>🔴 확인</td></tr>
-<tr><td>2026-08-18</td><td><a href="https://www.bleepingcomputer.com/news/security/cisa-windows-task-host-flaw-now-exploited-by-ransomware-gangs/" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>미상</td><td>취약점 악용</td><td>미상</td><td>취약점 악용</td><td>시스템 취약점 악용</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://www.ransomware.live/id/VC4uLiBQLi4uIEwuLi5AU2lsZW50UmFuc29tR3JvdXA=" target="_blank" rel="noopener noreferrer">T... P... L...</a></td><td class="country"><span class="country-cell">미상</span></td><td>미상</td><td>랜섬웨어</td><td>SilentRansomGroup</td><td>미상</td><td>미상</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://www.ransomware.live/id/UiAmIEQgTWFjaGluZSBhbmQgRW5naW5lZXJpbmdAZHJhZ29uZm9yY2U=" target="_blank" rel="noopener noreferrer">R &amp; D Machine and Engineering</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>제조</td><td>랜섬웨어</td><td>dragonforce</td><td>미상</td><td>미상</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://www.ransomware.live/id/Q29sdHJhbmUgU3lzdGVtc0BwbGF5" target="_blank" rel="noopener noreferrer">Coltrane Systems</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>랜섬웨어</td><td>play</td><td>미상</td><td>미상</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://www.bleepingcomputer.com/news/security/comcast-turns-your-xfinity-wifi-into-a-home-motion-detector/" target="_blank" rel="noopener noreferrer">Comcast</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>정보유출</td><td>미상</td><td>WiFi 기반 모션 감지</td><td>개인 이동 정보 노출 가능성</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://www.bleepingcomputer.com/news/security/clop-created-custom-web-shell-for-windchill-data-theft-attacks/" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>취약점</td><td>Clop</td><td>커스텀 웹 셸</td><td>데이터 탈취</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://www.bleepingcomputer.com/news/security/cisa-windows-task-host-flaw-now-exploited-by-ransomware-gangs/" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>취약점</td><td>미상</td><td>Windows Task Host 취약점</td><td>랜섬웨어 공격에 악용</td><td>🔴 확인</td></tr>
 <tr><td>2026-08-19</td><td><a href="https://therecord.media/university-of-texas-forced-to-take-systems-offline-cyberattack-san-antonio" target="_blank" rel="noopener noreferrer">University of Texas</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>교육</td><td>사이버 공격</td><td>미상</td><td>미상</td><td>시스템 오프라인</td><td>🟠 조사중</td></tr>
-<tr><td>2026-08-19</td><td><a href="https://therecord.media/berlin-cuts-two-state-ministries-off-government-breach" target="_blank" rel="noopener noreferrer">Berlin State Ministries</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/de.png" alt="독일" width="20" height="14" />독일</span></td><td>공공</td><td>보안 침해</td><td>미상</td><td>미상</td><td>네트워크 격리</td><td>🟠 조사중</td></tr>
-<tr><td>2026-08-19</td><td><a href="https://www.dailysecu.com/news/articleView.html?idxno=208097" target="_blank" rel="noopener noreferrer">FLY</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/kr.png" alt="한국" width="20" height="14" />한국</span></td><td>유통</td><td>정보유출</td><td>미상</td><td>데이터베이스 접근</td><td>개인정보 유출</td><td>🟡 공격자 주장</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://therecord.media/berlin-cuts-two-state-ministries-off-government-breach" target="_blank" rel="noopener noreferrer">Berlin State Ministries</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/de.png" alt="독일" width="20" height="14" />독일</span></td><td>공공</td><td>정보유출</td><td>미상</td><td>미상</td><td>네트워크 격리</td><td>🟠 조사중</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://nvd.nist.gov/vuln/detail/CVE-2026-33824" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>취약점</td><td>미상</td><td>CVE-2026-33824</td><td>Microsoft Internet Key Exchange 취약점</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://nvd.nist.gov/vuln/detail/CVE-2026-59310" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>취약점</td><td>미상</td><td>CVE-2026-59310</td><td>Broadcom VMware vCenter 취약점</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://nvd.nist.gov/vuln/detail/CVE-2026-55040" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>취약점</td><td>미상</td><td>CVE-2026-55040</td><td>Microsoft SharePoint 취약점</td><td>🔴 확인</td></tr>
+<tr><td>2026-08-19</td><td><a href="https://nvd.nist.gov/vuln/detail/CVE-2026-65400" target="_blank" rel="noopener noreferrer">취약점 공지</a></td><td class="country"><span class="country-cell"><img class="flag" src="https://flagcdn.com/w40/us.png" alt="미국" width="20" height="14" />미국</span></td><td>IT</td><td>취약점</td><td>미상</td><td>CVE-2026-65400</td><td>Apple macOS 취약점</td><td>🔴 확인</td></tr>
         </tbody>
       </table>
     </div>
+
+  <section class="stats-section" aria-label="오늘의 위협 통계 요약">
+    <h2 class="stats-heading">오늘의 위협 통계 요약</h2>
+    <div class="stats-grid">
+      <article class="stat-card">
+        <h3 class="stat-title">📍 주요 타겟</h3>
+        <p class="stat-subtitle">가장 많이 공격받은 국가</p>
+        <ol class="stat-list"><li><span class="stat-rank">1위</span><span class="stat-name">미국</span><span class="stat-count">10건</span></li><li><span class="stat-rank">2위</span><span class="stat-name">독일</span><span class="stat-count">1건</span></li></ol>
+        <p class="stat-subtitle stat-subtitle-gap">가장 많이 공격받은 산업군</p>
+        <ol class="stat-list"><li><span class="stat-rank">1위</span><span class="stat-name">IT</span><span class="stat-count">8건</span></li><li><span class="stat-rank">2위</span><span class="stat-name">제조</span><span class="stat-count">1건</span></li><li><span class="stat-rank">3위</span><span class="stat-name">교육</span><span class="stat-count">1건</span></li></ol>
+      </article>
+      <article class="stat-card">
+        <h3 class="stat-title">🏴‍☠️ 활성 공격 그룹</h3>
+        <p class="stat-subtitle">가장 많이 탐지된 위협 그룹</p>
+        <ol class="stat-list"><li><span class="stat-rank">1위</span><span class="stat-name">SilentRansomGroup</span><span class="stat-count">1건</span></li><li><span class="stat-rank">2위</span><span class="stat-name">dragonforce</span><span class="stat-count">1건</span></li><li><span class="stat-rank">3위</span><span class="stat-name">play</span><span class="stat-count">1건</span></li></ol>
+      </article>
+      <article class="stat-card">
+        <h3 class="stat-title">📊 수집 현황</h3>
+        <p class="stat-subtitle">데이터 소스별 수집 건수</p>
+        <ul class="stat-list stat-sources"><li><span class="stat-name">랜섬웨어 API</span><span class="stat-count">20건</span></li><li><span class="stat-name">보안 뉴스 RSS</span><span class="stat-count">67건</span></li><li><span class="stat-name">Twitter</span><span class="stat-count">0건</span></li><li><span class="stat-name">Check Point ThreatMap</span><span class="stat-count">11건</span></li><li><span class="stat-name">DuckIntel</span><span class="stat-count">20건</span></li></ul>
+      </article>
+    </div>
+  </section>
+
+  </div>
   </div>
 
   <script>
-    let currentCol = -1;
-    let currentDir = "asc";
+    let currentCol = 0;
+    let currentDir = "desc";
 
     function cellText(td) {
       return (td.innerText || td.textContent || "").trim();
     }
 
-    function sortTable(colIndex) {
+    function sortTable(colIndex, forceDir) {
       const table  = document.getElementById("threat-table");
       const tbody  = table.tBodies[0];
       const rows   = Array.from(tbody.rows);
-      const dir    = (currentCol === colIndex && currentDir === "asc") ? "desc" : "asc";
+      const dir    = forceDir || ((currentCol === colIndex && currentDir === "asc") ? "desc" : "asc");
       currentCol   = colIndex;
       currentDir   = dir;
 
@@ -238,6 +339,8 @@
         if (i === colIndex) th.classList.add(dir === "asc" ? "sort-asc" : "sort-desc");
       });
     }
+
+    window.addEventListener("load", () => sortTable(0, "desc"));
   </script>
 </body>
 </html>
