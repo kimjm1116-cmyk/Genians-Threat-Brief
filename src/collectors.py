@@ -226,3 +226,17 @@ def collect_articles(exclude_urls: set[str] | None = None) -> list[Article]:
         sum(1 for a in unique if a.region == "global"),
     )
     return unique[: settings.max_collected_articles]
+
+
+def collect_checkpoint_threatmap():
+    """Check Point ThreatMap 공개 API. 일일 봇은 src.main에서 호출한다."""
+    from src.live_intel import collect_checkpoint_threatmap as _collect
+
+    return _collect()
+
+
+def collect_duckintel():
+    """DuckIntel Dashboard 공개 피드. 일일 봇은 src.main에서 호출한다."""
+    from src.live_intel import collect_duckintel as _collect
+
+    return _collect()
