@@ -1346,13 +1346,15 @@ def send_test_slack() -> None:
     print("테스트 대시보드 이미지와 링크를 Slack 채널로 전송했습니다.")
 
 
-def run() -> int:
+def run(*, post_slack: bool = True) -> int:
     date_label = today_label()
     print("=" * 60)
     print("국내외 사이버 위협 현황 봇 시작")
     print(f"오늘 날짜: {date_label}")
     print(f"기준 시각: {now_utc().astimezone(KST).strftime('%Y-%m-%d %H:%M:%S KST')}")
     print_env_diagnostics()
+    if not post_slack:
+        print("[모드] Slack 전송 생략 (로컬 HTML만 생성)")
     print("=" * 60)
 
     try:
@@ -1363,14 +1365,16 @@ def run() -> int:
         duckintel = collect_duckintel()
         if not victims and not articles and not tweets and not checkpoint and not duckintel:
             print("[결과] 24시간 내 신규 데이터 없음")
-            post_empty_notice()
+            if post_slack:
+                post_empty_notice()
             return 0
 
         merged = merge_collected_text(victims, articles, tweets, checkpoint, duckintel)
         threats = analyze_with_openai(merged)
         if not threats:
             print("[결과] 추출된 위협 없음")
-            post_empty_notice()
+            if post_slack:
+                post_empty_notice()
             return 0
 
         source_counts = {
@@ -1382,15 +1386,20 @@ def run() -> int:
         }
         html_doc = build_html_report(threats, date_label, source_counts=source_counts)
         out_path = html_path(date_label)
-        preview_path = preview_image_path()
         save_html_report(html_doc, out_path)
-        render_preview_image(out_path, preview_path)
-        upload_html_to_slack(out_path, date_label, preview_path)
-        print(f"완료: {out_path.name}과 미리보기 이미지를 Slack에 전송했습니다. ({len(threats)}건)")
+        if post_slack:
+            preview_path = preview_image_path()
+            render_preview_image(out_path, preview_path)
+            upload_html_to_slack(out_path, date_label, preview_path)
+            print(f"완료: {out_path.name}과 미리보기 이미지를 Slack에 전송했습니다. ({len(threats)}건)")
+        else:
+            print(f"완료: 로컬 HTML 저장 ({len(threats)}건) → {out_path}")
         return 0
     except Exception as exc:
         print("[오류] 실행 실패")
         traceback.print_exc()
+        if not post_slack:
+            return 1
         try:
             slack_client().chat_postMessage(
                 channel=SLACK_CHANNEL_ID,
@@ -1410,4 +1419,4 @@ if __name__ == "__main__":
         except Exception:
             traceback.print_exc()
             sys.exit(1)
-    sys.exit(run())
+    sys.exit(run(post_slack="--no-slack" not in sys.argv))
