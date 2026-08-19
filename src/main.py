@@ -1,18 +1,22 @@
 """국내외 사이버 위협 현황 자동화 봇.
 
-Ransomware.live + 보안 뉴스 RSS + Twitter(RSSHub)를 수집하고,
-GPT-4o JSON을 정렬 가능한 하이퍼링크 HTML 표로 만든 뒤 Slack에 업로드한다.
+Ransomware.live + 보안 뉴스 RSS + Twitter(RSSHub) + Check Point ThreatMap +
+DuckIntel Dashboard를 수집하고, GPT-4o JSON을 정렬 가능한 하이퍼링크 HTML 표로
+만든 뒤 Slack에 업로드한다.
 """
 
 from __future__ import annotations
 
 import html
+import http.server
 import json
 import os
 import re
 import sys
 import subprocess
+import threading
 import traceback
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -26,6 +30,8 @@ from openai import OpenAI
 from playwright.sync_api import sync_playwright
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+
+from src.live_intel import collect_checkpoint_threatmap, collect_duckintel
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
@@ -152,8 +158,9 @@ COUNTRY_ISO_BY_NAME["영국"] = "gb"
 FLAG_RE = re.compile(r"[\U0001F1E6-\U0001F1FF]{2}")
 
 SYSTEM_PROMPT = """당신은 최고 수준의 CTI 분석가입니다. 뉴스 및 트위터 데이터를 종합 분석하여 다음 JSON 스키마에 맞게 결과를 출력하세요. 중요한 위협 정보는 절대 누락하지 마세요.
-랜섬웨어 API, 보안 뉴스 RSS, 트위터 인텔리전스를 골고루 반영하세요.
+랜섬웨어 API, 보안 뉴스 RSS, 트위터 인텔리전스, Check Point ThreatMap, DuckIntel(abuse.ch/CISA) 동향을 골고루 반영하세요.
 트위터는 침해사고·랜섬웨어·취약점·악성코드 등 의미 있는 위협만 포함하고, 단순 잡담은 제외하세요.
+Check Point/DuckIntel은 개별 IOC·IP를 나열하지 말고, 최근 24시간 주요 공격 기법·악성코드 패밀리·KEV 취약점·집중 대상 국가 중심으로 넣으세요.
 
 {
   "threats": [
@@ -343,7 +350,7 @@ def country_display_name(value: str, iso: str) -> str:
 
 
 def collect_ransomware_victims() -> list[dict[str, Any]]:
-    print("[1/5] Ransomware.live 피해자 수집 시작")
+    print("[1/7] Ransomware.live 피해자 수집 시작")
     print(f"  - API 호출: {RANSOMWARE_LIVE_URL}")
     cutoff = cutoff_utc()
     headers = {**HTTP_HEADERS, "Accept": "application/json"}
@@ -440,7 +447,7 @@ def fetch_rss(url: str, timeout: float | None = None) -> Any:
 
 
 def collect_security_news() -> list[dict[str, Any]]:
-    print("[2/5] 보안 뉴스 RSS 수집 시작")
+    print("[2/7] 보안 뉴스 RSS 수집 시작")
     cutoff = cutoff_utc()
     articles: list[dict[str, Any]] = []
 
@@ -461,7 +468,7 @@ def collect_security_news() -> list[dict[str, Any]]:
 
 
 def collect_twitter_intel() -> list[dict[str, Any]]:
-    print("[3/5] Twitter(X) 위협 인텔리전스 수집 시작 (RSSHub)")
+    print("[3/7] Twitter(X) 위협 인텔리전스 수집 시작 (RSSHub)")
     cutoff = cutoff_utc()
     tweets: list[dict[str, Any]] = []
 
@@ -497,12 +504,33 @@ def collect_twitter_intel() -> list[dict[str, Any]]:
     return tweets
 
 
+def _format_live_intel_lines(items: list[dict[str, Any]]) -> list[str]:
+    lines: list[str] = []
+    for i, item in enumerate(items, start=1):
+        lines.append(
+            f"{i}. 일자: {item.get('date') or today_ymd()} | "
+            f"대상: {item.get('target') or '확인필요'} | "
+            f"국가: {item.get('country') or '미상'} | "
+            f"사고 유형: {item.get('attack_type') or '미상'} | "
+            f"공격기법: {item.get('technique') or '미상'} | "
+            f"관측건수: {item.get('count') or 1}"
+        )
+        if item.get("summary"):
+            lines.append(f"   요약: {item['summary']}")
+        lines.append(f"   출처 URL: {item.get('source_url') or '미상'}")
+    return lines
+
+
 def merge_collected_text(
     victims: list[dict[str, Any]],
     articles: list[dict[str, Any]],
     tweets: list[dict[str, Any]],
+    checkpoint: list[dict[str, Any]] | None = None,
+    duckintel: list[dict[str, Any]] | None = None,
 ) -> str:
-    print("[4/5] 수집 데이터 병합")
+    print("[6/7] 수집 데이터 병합")
+    checkpoint = checkpoint or []
+    duckintel = duckintel or []
     lines = [
         f"수집 시각: {now_utc().astimezone(KST).strftime('%Y-%m-%d %H:%M KST')}",
         f"조회 범위: 최근 {LOOKBACK_HOURS}시간",
@@ -553,13 +581,45 @@ def merge_collected_text(
     else:
         lines.append("(최근 24시간 내 신규 트윗 없음)")
 
+    lines.extend(
+        [
+            "",
+            "===== [소스 D] Check Point ThreatMap =====",
+            "실시간 글로벌 공격 맵입니다. 기업명이 없으면 기업/기관은 '확인필요'로 적으세요.",
+            "CVE·제품 취약점 공격이면 기업/기관은 '취약점 공지'로 적으세요.",
+            "개별 패킷을 모두 넣지 말고, 공격 기법·대상 국가 동향 위주로 반영하세요.",
+            "출처_URL은 각 항목의 '출처 URL'을 그대로 사용하세요.",
+            "",
+        ]
+    )
+    if checkpoint:
+        lines.extend(_format_live_intel_lines(checkpoint))
+    else:
+        lines.append("(최근 24시간 내 Check Point 동향 없음)")
+
+    lines.extend(
+        [
+            "",
+            "===== [소스 E] DuckIntel Dashboard (abuse.ch / CISA KEV) =====",
+            "URLhaus·ThreatFox·Feodo는 악성코드 유포/C2 동향입니다. 개별 URL·IP는 표에 넣지 마세요.",
+            "악성코드 패밀리명을 공격그룹/공격기법에 넣고, 기업/기관은 회사명이 없으면 '확인필요'입니다.",
+            "CISA KEV 항목은 취약점 공지입니다. 기업/기관은 '취약점 공지', 사고 유형은 '취약점' 또는 '제로데이'로 적으세요.",
+            "출처_URL은 각 항목의 '출처 URL'을 그대로 사용하세요.",
+            "",
+        ]
+    )
+    if duckintel:
+        lines.extend(_format_live_intel_lines(duckintel))
+    else:
+        lines.append("(최근 24시간 내 DuckIntel 동향 없음)")
+
     merged = "\n".join(lines)
-    print(f"[4/5] 병합 완료 (문자 {len(merged):,}자)")
+    print(f"[6/7] 병합 완료 (문자 {len(merged):,}자)")
     return merged
 
 
 def analyze_with_openai(merged_text: str) -> list[dict[str, Any]]:
-    print(f"[5/5] OpenAI 분석 시작 (model={OPENAI_MODEL}, json_object)")
+    print(f"[7/7] OpenAI 분석 시작 (model={OPENAI_MODEL}, json_object)")
     if not OPENAI_API_KEY or OPENAI_API_KEY.startswith("sk-your-"):
         raise RuntimeError("OPENAI_API_KEY가 .env에 없거나 예시 값입니다.")
 
@@ -576,8 +636,9 @@ def analyze_with_openai(merged_text: str) -> list[dict[str, Any]]:
                     "content": (
                         "아래 데이터를 JSON 스키마로만 분석하세요. "
                         "출처_URL은 입력에 있는 URL을 그대로 넣으세요. "
-                        "소스 A(Ransomware.live), 소스 B(보안 뉴스 RSS), 소스 C(Twitter)를 융합해 "
-                        "의미 있는 침해사고·랜섬웨어 동향·취약점 정보를 표에 포함하세요. "
+                        "소스 A(Ransomware.live), 소스 B(보안 뉴스 RSS), 소스 C(Twitter), "
+                        "소스 D(Check Point ThreatMap), 소스 E(DuckIntel)를 융합해 "
+                        "의미 있는 침해사고·랜섬웨어 동향·취약점·악성코드 정보를 표에 포함하세요. "
                         "취약점 공지면 기업/기관은 '취약점 공지', 침해사고인데 회사명을 모르면 '확인필요'로 적으세요. "
                         "단순 잡담 트윗은 제외하세요.\n\n"
                         + merged_text
@@ -590,7 +651,7 @@ def analyze_with_openai(merged_text: str) -> list[dict[str, Any]]:
         threats = data.get("threats") if isinstance(data, dict) else None
         if not isinstance(threats, list):
             raise RuntimeError("OpenAI JSON에 threats 배열이 없습니다.")
-        print(f"[5/5] OpenAI 분석 완료 ({len(threats)}건)")
+        print(f"[7/7] OpenAI 분석 완료 ({len(threats)}건)")
         return threats
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"OpenAI JSON 파싱 실패: {exc}") from exc
@@ -652,10 +713,119 @@ def country_cell_html(iso: str, name: str) -> str:
     return f'<span class="country-cell">{safe_name}</span>'
 
 
-def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
+STAT_SKIP_VALUES = {
+    "",
+    "-",
+    "–",
+    "—",
+    "미상",
+    "해당없음",
+    "없음",
+    "n/a",
+    "na",
+    "unknown",
+    "none",
+    "null",
+    "확인필요",
+}
+
+
+def is_stat_missing(value: Any) -> bool:
+    text = strip_html(str(value or "")).strip()
+    return text.lower() in STAT_SKIP_VALUES
+
+
+def top_counts(values: list[str], limit: int = 3) -> list[tuple[str, int]]:
+    counted = Counter(value for value in values if not is_stat_missing(value))
+    return counted.most_common(limit)
+
+
+def stat_rank_list_html(items: list[tuple[str, int]], empty_text: str) -> str:
+    if not items:
+        return f'<p class="stat-empty">{html.escape(empty_text)}</p>'
+    medals = ("1위", "2위", "3위")
+    rows = []
+    for idx, (name, count) in enumerate(items[:3]):
+        rank = medals[idx] if idx < len(medals) else f"{idx + 1}위"
+        rows.append(
+            "<li>"
+            f'<span class="stat-rank">{rank}</span>'
+            f'<span class="stat-name">{html.escape(name)}</span>'
+            f'<span class="stat-count">{count}건</span>'
+            "</li>"
+        )
+    return f'<ol class="stat-list">{"".join(rows)}</ol>'
+
+
+def build_stats_section_html(
+    rows: list[dict[str, str]],
+    source_counts: dict[str, int] | None = None,
+) -> str:
+    countries = top_counts([row.get("국가명") or row.get("국가") or "" for row in rows])
+    industries = top_counts([row.get("산업군") or "" for row in rows])
+    groups = top_counts([row.get("공격그룹") or "" for row in rows])
+    sources = [
+        (label, count)
+        for label, count in (source_counts or {}).items()
+        if not is_stat_missing(label)
+    ]
+
+    country_html = stat_rank_list_html(countries, "집계할 국가 데이터가 없습니다.")
+    industry_html = stat_rank_list_html(industries, "집계할 산업군 데이터가 없습니다.")
+    group_html = stat_rank_list_html(groups, "집계할 공격 그룹이 없습니다.")
+    if sources:
+        source_items = "".join(
+            "<li>"
+            f'<span class="stat-name">{html.escape(label)}</span>'
+            f'<span class="stat-count">{count}건</span>'
+            "</li>"
+            for label, count in sources
+        )
+        source_html = f'<ul class="stat-list stat-sources">{source_items}</ul>'
+    else:
+        source_html = '<p class="stat-empty">수집 현황 데이터가 없습니다.</p>'
+
+    return f"""
+  <section class="stats-section" aria-label="오늘의 위협 통계 요약">
+    <h2 class="stats-heading">오늘의 위협 통계 요약</h2>
+    <div class="stats-grid">
+      <article class="stat-card">
+        <h3 class="stat-title">📍 주요 타겟</h3>
+        <p class="stat-subtitle">가장 많이 공격받은 국가</p>
+        {country_html}
+        <p class="stat-subtitle stat-subtitle-gap">가장 많이 공격받은 산업군</p>
+        {industry_html}
+      </article>
+      <article class="stat-card">
+        <h3 class="stat-title">🏴‍☠️ 활성 공격 그룹</h3>
+        <p class="stat-subtitle">가장 많이 탐지된 위협 그룹</p>
+        {group_html}
+      </article>
+      <article class="stat-card">
+        <h3 class="stat-title">📊 수집 현황</h3>
+        <p class="stat-subtitle">데이터 소스별 수집 건수</p>
+        {source_html}
+      </article>
+    </div>
+  </section>
+"""
+
+
+def build_html_report(
+    threats: list[dict[str, Any]],
+    date_label: str,
+    source_counts: dict[str, int] | None = None,
+) -> str:
     rows = [normalize_row(item) for item in threats if isinstance(item, dict)]
+    rows.sort(key=lambda row: row.get("위협 일자") or "", reverse=True)
+    stats_html = build_stats_section_html(rows, source_counts)
     header_cells = "".join(
-        f'<th onclick="sortTable({idx})" data-col="{idx}">{html.escape(col)}</th>'
+        (
+            f'<th onclick="sortTable({idx})" data-col="{idx}"'
+            f' class="sort-desc">{html.escape(col)}</th>'
+            if col == "위협 일자"
+            else f'<th onclick="sortTable({idx})" data-col="{idx}">{html.escape(col)}</th>'
+        )
         for idx, col in enumerate(COLUMNS)
     )
     body_rows = []
@@ -824,6 +994,91 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
     /* ── 신뢰도 배지 ── */
     td:last-child {{ white-space: nowrap; }}
 
+    /* ── 통계 요약 ── */
+    .dashboard {{
+      max-width: 1480px;
+      margin: 0 auto;
+    }}
+    .stats-section {{
+      margin-top: 40px;
+      padding: 0 24px 24px;
+    }}
+    .stats-heading {{
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.2px;
+      margin: 0 0 14px;
+    }}
+    .stats-grid {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }}
+    .stat-card {{
+      background: #ffffff;
+      border: 1px solid #eaecf0;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+      padding: 20px 22px 18px;
+      min-height: 100%;
+    }}
+    .stat-title {{
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 4px;
+    }}
+    .stat-subtitle {{
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      margin: 8px 0 8px;
+    }}
+    .stat-subtitle-gap {{
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #f3f4f6;
+    }}
+    .stat-list {{
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }}
+    .stat-list li {{
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 14px;
+      color: #111827;
+    }}
+    .stat-rank {{
+      flex: 0 0 32px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;
+    }}
+    .stat-name {{
+      flex: 1 1 auto;
+      font-weight: 600;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .stat-count {{
+      margin-left: auto;
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      white-space: nowrap;
+    }}
+    .stat-empty {{
+      font-size: 13px;
+      color: #9ca3af;
+    }}
+
     @media (max-width: 768px) {{
       th {{
         font-size: 12px;
@@ -833,6 +1088,9 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
         font-size: 12px;
         padding: 10px 12px;
       }}
+      .stats-grid {{
+        grid-template-columns: 1fr;
+      }}
     }}
   </style>
 </head>
@@ -841,6 +1099,7 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
     <h1 class="page-title">🚨 {html.escape(date_label)} 국내/해외 사이버 위협 현황</h1>
   </div>
 
+  <div class="dashboard">
   <div class="card">
     <div class="card-header">
       <span class="badge">LIVE</span>
@@ -855,21 +1114,23 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
         </tbody>
       </table>
     </div>
+{stats_html}
+  </div>
   </div>
 
   <script>
-    let currentCol = -1;
-    let currentDir = "asc";
+    let currentCol = 0;
+    let currentDir = "desc";
 
     function cellText(td) {{
       return (td.innerText || td.textContent || "").trim();
     }}
 
-    function sortTable(colIndex) {{
+    function sortTable(colIndex, forceDir) {{
       const table  = document.getElementById("threat-table");
       const tbody  = table.tBodies[0];
       const rows   = Array.from(tbody.rows);
-      const dir    = (currentCol === colIndex && currentDir === "asc") ? "desc" : "asc";
+      const dir    = forceDir || ((currentCol === colIndex && currentDir === "asc") ? "desc" : "asc");
       currentCol   = colIndex;
       currentDir   = dir;
 
@@ -887,6 +1148,8 @@ def build_html_report(threats: list[dict[str, Any]], date_label: str) -> str:
         if (i === colIndex) th.classList.add(dir === "asc" ? "sort-asc" : "sort-desc");
       }});
     }}
+
+    window.addEventListener("load", () => sortTable(0, "desc"));
   </script>
 </body>
 </html>
@@ -902,14 +1165,45 @@ def save_html_report(html_doc: str, path: Path) -> Path:
 
 
 def render_preview_image(html_file: Path, image_file: Path) -> Path:
+    """웹 페이지와 같은 레이아웃으로 스크린샷을 남긴다 (폰트/국기 CDN 포함)."""
     image_file.parent.mkdir(parents=True, exist_ok=True)
+    public_dir = html_file.parent.resolve()
+
+    class QuietHandler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(public_dir), **kwargs)
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), QuietHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
     print(f"[저장] 미리보기 이미지 생성 시작: {image_file}")
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1600, "height": 2200}, device_scale_factor=1)
-        page.goto(html_file.resolve().as_uri(), wait_until="networkidle")
-        page.screenshot(path=str(image_file), full_page=True)
-        browser.close()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(
+                viewport={"width": 1480, "height": 900},
+                device_scale_factor=2,
+            )
+            page.goto(
+                f"http://127.0.0.1:{port}/{html_file.name}",
+                wait_until="networkidle",
+                timeout=30000,
+            )
+            page.evaluate("() => document.fonts.ready")
+            page.wait_for_function(
+                "() => Array.from(document.images).every((img) => img.complete)",
+                timeout=15000,
+            )
+            page.wait_for_timeout(400)
+            page.locator(".card").screenshot(path=str(image_file), type="png")
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
     print(f"[저장] 미리보기 이미지 저장: {image_file}")
     return image_file
 
@@ -1035,7 +1329,17 @@ def send_test_slack() -> None:
     date_label = today_label()
     out_path = html_path(date_label)
     preview_path = preview_image_path()
-    html_doc = build_html_report(sample, date_label)
+    html_doc = build_html_report(
+        sample,
+        date_label,
+        source_counts={
+            "랜섬웨어 API": 1,
+            "보안 뉴스 RSS": 0,
+            "Twitter": 0,
+            "Check Point ThreatMap": 0,
+            "DuckIntel": 0,
+        },
+    )
     save_html_report(html_doc, out_path)
     render_preview_image(out_path, preview_path)
     upload_html_to_slack(out_path, date_label, preview_path)
@@ -1055,19 +1359,28 @@ def run() -> int:
         victims = collect_ransomware_victims()
         articles = collect_security_news()
         tweets = collect_twitter_intel()
-        if not victims and not articles and not tweets:
+        checkpoint = collect_checkpoint_threatmap()
+        duckintel = collect_duckintel()
+        if not victims and not articles and not tweets and not checkpoint and not duckintel:
             print("[결과] 24시간 내 신규 데이터 없음")
             post_empty_notice()
             return 0
 
-        merged = merge_collected_text(victims, articles, tweets)
+        merged = merge_collected_text(victims, articles, tweets, checkpoint, duckintel)
         threats = analyze_with_openai(merged)
         if not threats:
             print("[결과] 추출된 위협 없음")
             post_empty_notice()
             return 0
 
-        html_doc = build_html_report(threats, date_label)
+        source_counts = {
+            "랜섬웨어 API": len(victims),
+            "보안 뉴스 RSS": len(articles),
+            "Twitter": len(tweets),
+            "Check Point ThreatMap": len(checkpoint),
+            "DuckIntel": len(duckintel),
+        }
+        html_doc = build_html_report(threats, date_label, source_counts=source_counts)
         out_path = html_path(date_label)
         preview_path = preview_image_path()
         save_html_report(html_doc, out_path)
